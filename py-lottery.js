@@ -1,3 +1,4 @@
+"use strict";
 const API = require('./lottery_api');
 const custom = require('./custom_lottery');
 API.api();

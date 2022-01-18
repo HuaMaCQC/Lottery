@@ -17,6 +17,7 @@
   },
   "homepage": "https://github.com/starclub88/pyramid_custom_lottery#readme",
   "dependencies": {
+    "dotenv": "^4.0.0",
     "koa": "^2.4.1",
     "koa-router": "^7.3.0",
     "moment": "^2.20.1",

@@ -1,7 +1,7 @@
+"use strict";
 /**
 * 轉換date格式資料 return string
 */
-
 Date.prototype.yyyymmdd = function () { //日期排序
     let mm = this.getMonth() + 1; // getMonth() is 重0開始
     let dd = this.getDate();
@@ -17,83 +17,104 @@ Date.prototype.yyyymmdd = function () { //日期排序
     (s > 9 ? '' : '0') + s
     ].join(':');
 }
+
 //存取DB
-let config = require('./config.json');
 const mysql = require('mysql');
 const lottery_result = require('./lottery_result');
 const moment = require('moment');
+require('dotenv').config()
+
+
+let con_query = (sql,callback) => {
+    const con = mysql.createConnection({  //資料庫連線
+        host: process.env.DB_HOST,
+        user: process.env.DB_USER,
+        password: process.env.DB_PASS,
+        database: process.env.DB_DATABASE
+    });
+    con.query(sql,(err, result) => {
+        con.end(); //關閉連線
+        callback(err,result);
+    });
+}
+
 module.exports = {
     /**
-     * 產生一整天sql
+     * 取下一筆需要產生的時間
      * @param me class帶入參數
-     * @param startTime 樂透於每日幾分點開始開獎
-     * @param endTime 樂透於每日幾分結束開獎
-     * @param today 開獎時間
-     * @param callback 成功(sql)
-     * @param errcallback 失敗(err)
      */
-    getRegainDbSql: (me, startTime, endTime, today, callback, errcallback) => {
-        let m_start = startTime; //開始產生的時間
-        let m_end = endTime; //結束產生的時間
-        let sql = `SELECT * FROM \`${config.DB.table}\` 
+    getNewest: (me) => {
+        return new Promise((resolve, reject) => {
+            let sql = `SELECT * FROM lottery_data 
                     WHERE
-                        \`${config.DB.type}\` = ${me.type} 
+                       type = ${me.type} 
                     ORDER BY 
-                        \`${config.DB.date}\` 
-                    DESC LIMIT ${1}`;
-        let regainSql = "";
-        const con = mysql.createConnection({  //資料庫連線
-            host: config.DB.host,
-            user: config.DB.user,
-            password: config.DB.password,
-            database: config.DB.database
+                    created_at 
+                    DESC LIMIT 1`;
+            con_query(sql,(err,result)=>{
+                let m_start = moment().hour(me.startHour).minute(me.startMinute).second(0); //開始產生的時間
+                let m_end = moment().hour(me.endHour).minute(me.endMinute).second(0);  //結束產生的時間
+                if (err) {
+                    reject(new Error('error occur!')) //失敗
+                } else { //查詢到最新日期
+                    // 取得下一筆要產生亂數的時間           
+                    let newDate = m_start.toDate(); //預設產生一整天
+                    let issue = ''; //預設第一次產生
+                    if (result.length != 0) {  //有查詢到最新資料
+                        let res_time = result[0]['created_at'];
+                        issue = issue = result[0]['issue']
+                        if (moment(res_time).isSame(moment(), 'day')) { //如果最新的一筆資料是在今天的話
+                            newDate = moment(result[0]['created_at']).add(me.rule, 'minute').toDate() //取得下一筆執行的時間
+                        } else {  //不是在今天                  
+                            if (moment().diff(moment(res_time), 'h') < me.InspectionHour) { //如果server斷線沒有過長
+                                m_start =new moment(res_time).hour(me.startHour).minute(me.startMinute) ; //設置開始日期
+                                m_end = new moment(res_time).hour(me.endHour).minute(me.endMinute); //設置結束日期
+                                if (moment(res_time).valueOf() == m_end.valueOf()) { //資料庫的最新資料=最後一筆的時間
+                                    m_start.add(1, 'day'); //換天
+                                    m_end.add(1, 'day'); //換天
+                                    newDate = m_start.toDate();
+                                } else { //如果最新資料不是最後一筆
+                                    newDate =new moment(res_time).add(me.rule, 'minute').toDate(); //生產時間為下一個時間
+                                }
+                            }
+                        }
+                    }
+                    resolve({ 'newDate': newDate, 'start': m_start, 'end': m_end, 'issue': issue }); //return
+                }
+            });
         });
-        con.query(sql, function (err, result) {
-            if (err) {
-                errcallback(err);
-            } else { //查詢到最新日期
-                let newDate = m_start.toDate();
-                let issue = '';
-                if (Object.keys(result).length != 0) {  //有查詢到最新資料
-                    newDate = result[0][config.DB.date];  //設定生產資料由資料庫最新資料開始
-                    issue = result[0][config.DB.issue]; //取得最後的期數
-                    if (moment().diff(moment(newDate), 'h') > me.InspectionHour && moment(newDate).isBefore()) { //如果server斷線時間過長
-                        newDate = m_start.toDate(); //設定產生資料由server開啟當天開始
-                    }
-                    m_start = moment(newDate).hour(me.startHour).minute(me.startMinute).second(0).subtract(1, 's');
-                    m_end = moment(newDate).hour(me.endHour).minute(me.endMinute).second(0).add(1, 's');
+    },
+    /** 
+     * 產生需要新增的sql字串 
+     * @param me class帶入參數
+     * @param newest  getNewest return得參數
+    */
+    getSql: (me, newest) => {
+        return new Promise((resolve, reject) => {
+            let regainSql = []; //要新增的sql
+            let resultSQL = ''; //串接好的sql
+            let newDate = newest.newDate; //下一筆要新增的時間
+            let m_start = newest.start; //開始產生的時間
+            let m_end = newest.end; //結束產生的時間
+            let issue = newest.issue;  //期數
+            for (let d = moment().diff(m_start, 'days'); d >= 0; d--) {//要產生幾天
+                let Num = Math.floor((m_end.diff(moment(newDate), 'minute')) / me.rule) + 1; //計算要產生幾筆
+                console.log('產生' + Num + '筆');
+                for (let i = Num; i > 0; i--) { //要產生幾筆
+                    issue = lottery_result.getissue(newDate, issue, me.issuerule); //產生 issue
+                    let lotteryNum = lottery_result.getRandomArray(me.repeat,me.minNum, me.maxNum, me.n).join(','); //產生樂透號碼
+                    regainSql.push(`('${newDate.yyyymmdd()}','${lotteryNum}','${me.type}','${issue}')`); //將結果push進陣列
+                    newDate = moment(newDate).add(me.rule, 'minute').toDate(); //產生下一筆的時間
                 }
-                do {
-                    newDate = me.rule.nextInvocationDate(newDate);//獲取下次產生亂數時間
-                    if (moment(newDate).isAfter(m_end)) { //如果要產生的時間在最後一筆之後
-                        m_start.add(1, 'day'); //偵測時間改到明天
-                        m_end.add(1, 'day');
-                    }
-                } while (!moment(newDate).isBetween(m_start, m_end))
-                while (moment(newDate).isBetween(m_start, m_end) && m_end.isBefore(moment().add(1, 'day'), 'day')) { //要新增的時間有沒有在範圍內 而且是在今天
-                    issue = lottery_result.getissue(newDate, issue, me.issueFirst); //產生 issue
-                    if (regainSql == "") { //起始sql
-                        regainSql = `INSERT INTO \`${config.DB.table}\` 
-                                        ( \`${config.DB.date}\`, \`${config.DB.result}\`
-                                        , \`${config.DB.type}\`, \`${config.DB.issue}\`)
-                                     VALUES 
-                                        ('${newDate.yyyymmdd()}','${lottery_result.getRandomString(me.minNum, me.maxNum, me.n)}'
-                                        ,'${me.type}','${issue}')`;
-                    } else { //串接sql
-                        regainSql += `,('${newDate.yyyymmdd()}','${lottery_result.getRandomString(me.minNum, me.maxNum, me.n)}'
-                                     ,'${me.type}','${issue}')`;
-                    }
-                    newDate = me.rule.nextInvocationDate(newDate);//獲取下次產生亂數時間 
-                    if (moment(newDate).isAfter(m_end)) { //如果要產生的時間在最後一筆之後
-                        m_start.add(1, 'day'); //偵測時間改到明天
-                        m_end.add(1, 'day');
-                    }
-                }
-                today.add(1, 'day');
-                callback(regainSql, m_start, m_end);
+                m_start.add(1, 'day');//換天
+                m_end.add(1, 'day');
+                newDate = m_start.toDate(); //換天
             }
-        })
-        con.end();
+            if (regainSql.length > 0) {
+                resultSQL = `INSERT INTO lottery_data ( created_at, result , type, issue) VALUES ` + regainSql.join(','); //串接
+            }
+            resolve(resultSQL);  //return
+        });
     },
     /**
      * 儲存sql
@@ -101,49 +122,42 @@ module.exports = {
      * @param callback 成功();
      * @param errcallback 失敗(err);
      */
-    saveSql: (sql, callback, errcallback) => {
-        const con = mysql.createConnection({  //資料庫連線
-            host: config.DB.host,
-            user: config.DB.user,
-            password: config.DB.password,
-            database: config.DB.database
-        });
-        con.query(sql, function (err, result) {
-            if (err) {
-                con.end();
-                errcallback(err);
+    saveSql: (sql) => {
+        return new Promise((resolve, reject) => {
+            if (sql != '') { //偵測有沒有要儲存的資料
+                con_query(sql,(err,result)=>{
+                    if (err) {
+                        reject(new Error(err)); //失敗
+                    } else {
+                        resolve('儲存成功'); //return
+                    }
+                });
             } else {
-                con.end();
-                callback();
+                resolve('不需要更新資料'); //return
             }
-        })
+        });
     },
     /**
      * 查詢最新資料
      * @param type 要查詢的財種
      * @param row 要查詢前幾個
+     * @param now 要查詢的時間
      */
     selectDB: (type, row, now) => {
         return new Promise((resolve, reject) => {
-            let sql = `SELECT \`${config.typeDB.table}\`.\`${config.typeDB.type}\`,
-                               \`${config.DB.table}\`.\`${config.DB.issue}\`,
-                               \`${config.DB.table}\`.\`${config.DB.result}\`,
-                               \`${config.DB.table}\`.\`${config.DB.date}\` 
-                        FROM   \`${config.DB.table}\`
-                        JOIN        \`${config.typeDB.table}\` ON \`${config.DB.table}\`.\`${config.DB.type}\` =
-                                    \`${config.typeDB.table}\`.\`${config.typeDB.id}\`
-                        WHERE       \`${config.DB.table}\`.\`${config.DB.date}\` < '${new Date(now).yyyymmdd()}'
-                                    AND \`${config.typeDB.table}\`.\`${config.DB.type}\` = '${type}'
-                        ORDER BY    \`${config.DB.table}\`.\`${config.DB.date}\` DESC
+            let sql = `SELECT lottery_type.type,
+                               lottery_data.issue,
+                               lottery_data.result,
+                               lottery_data.created_at 
+                        FROM   lottery_data
+                        JOIN        lottery_type ON lottery_data.type =
+                                    lottery_type.id
+                        WHERE       lottery_data.created_at < '${new Date(now).yyyymmdd()}'
+                                    AND lottery_type.type = '${type}'
+                        ORDER BY    lottery_data.created_at DESC
                         LIMIT       ${row}`;
             let date = '';
-            const con = mysql.createConnection({  //資料庫連線
-                host: config.DB.host,
-                user: config.DB.user,
-                password: config.DB.password,
-                database: config.DB.database
-            });
-            con.query(sql, (err, result) => {
+            con_query(sql,(err,result)=>{
                 if (err) {
                     resolve('404');
                 } else {
@@ -151,42 +165,38 @@ module.exports = {
                         let m_data = [];
                         for (let i = 0, long = Object.keys(result).length; i < long; i++) {
                             m_data.push({
-                                "issue": result[i][config.DB.issue],
-                                "result": result[i][config.DB.result].split(','),
-                                "time": result[i][config.DB.date].yyyymmdd()
+                                "issue": result[i]['issue'],
+                                "result": result[i]['result'].split(','),
+                                "time": result[i]['created_at'].yyyymmdd()
                             })
                         }
                         resolve({ 'type': type, 'data': m_data });
                     } else {
                         resolve('');
                     }
-                    con.end();
                 }
-            })
-        })
+            });
+        });
     },
     /**
      * 查詢是否有這個key
      * @param key 廠商的key
      */
-    getket: key => {
-        const con = mysql.createConnection({  //資料庫連線
-            host: config.DB.host,
-            user: config.DB.user,
-            password: config.DB.password,
-            database: config.DB.database
-        });
+    getkey: key => {
         return new Promise((resolve, reject) => {
-            let sql = `SELECT * FROM \`${config.firm.table}\` 
-                        WHERE \`${config.firm.key}\` = '${key}'`;
-            con.query(sql, (err, result) => {
-                if (Object.keys(result).length > 0) {
-                    resolve(true);
-                } else {
+            let sql = `SELECT * FROM firm 
+                        WHERE \`key\` = '${key}'`;
+            con_query(sql,(err,result)=>{
+                if(err){
                     resolve(false);
+                }else{
+                    if (Object.keys(result).length > 0) {
+                        resolve(true);
+                    } else {
+                        resolve(false);
+                    }
                 }
-                con.end();
-            })
-        })
+            });
+        });
     }
 }
