@@ -10,7 +10,7 @@ module.exports = {
         }, {
             type: 1
         }, {
-            rule: 5, //每5分鐘
+            interval: 5, //每5分鐘
             InspectionHour: 48, //超過48小時不回復
             startHour: 9, //9:05~23:55 
             startMinute: 5,
@@ -27,7 +27,7 @@ module.exports = {
         }, {
             type: 2
         }, {
-            rule: 10, //每10分鐘
+            interval: 10, //每10分鐘
             InspectionHour: 48, //超過48小時不回復
             startHour: 9, //9:10~23:00
             startMinute: 10,
@@ -44,7 +44,7 @@ module.exports = {
         }, {
             type: 3
         }, {
-            rule: 10, //每10分鐘
+            interval: 10, //每10分鐘
             InspectionHour: 48, //超過48小時不回復
             startHour: 9, //9:10~23:00
             startMinute: 10,

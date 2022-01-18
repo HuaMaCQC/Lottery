@@ -4,8 +4,8 @@ let moment = require('moment');
 module.exports = {
     create: async ctx => {
         let row = 5;
-        let ctxRow = ctx.query.row
-        if (ctxRow != undefined && ctxRow < 21 && ctxRow > 5) { //限制數量 5~20
+        let ctxRow = ctx.query.row;
+        if (ctxRow != undefined && ctxRow < 21 && ctxRow > 5 && typeof(ctxRow) === 'number') { //限制數量 5~20
             row = ctxRow; //給與數量
         }
         try {

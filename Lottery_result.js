@@ -15,7 +15,7 @@ module.exports = {
             }
         } else { //不可重複
             for (let i = minNum; i <= maxNum; i++) { //產生所有號碼
-                rdmArray.push(i)
+                rdmArray.push(i);
             }
             for (let i = rdmArray.length - 1; i > 0; i--) { //交換陣列
                 const j = Math.floor(Math.random() * (i + 1));
@@ -25,17 +25,17 @@ module.exports = {
         }
         return rdmArray;
     },
-    /** 改成從 issuerule 開始+
-     * 產生期號 ymd+issuerule
+    /** 改成從 issueinterval 開始+
+     * 產生期號 ymd+issueinterval
      * @param date 產生時間
      * @param issue 最後一筆編號
-     * @param issuerule 第一筆編碼方式 '001'
+     * @param issueinterval 第一筆編碼方式 '001'
      */
-    getissue: (date, issue, issuerule) => {
+    getissue: (date, issue, issueinterval) => {
         let mm = date.getMonth() + 1;
         let dd = date.getDate();
         let ymd = date.getFullYear() + (mm > 9 ? '' : '0') + mm + (dd > 9 ? '' : '0') + dd;
-        let num = issuerule;
+        let num = issueinterval;
         if (ymd == String(issue).slice(0, 8)) { //如果是當天
             return Number(issue) + 1;
         } else {
@@ -43,3 +43,4 @@ module.exports = {
         }
     }
 };
+
