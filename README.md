@@ -162,7 +162,6 @@ https://nodejs.org/en/
 
     ```javascript
     lottert_service: () => {
-        //金字塔PK拾
         const pypk10 = new Lottery({
             repeat: false, //不可重複
             maxNum: 10, //1~10號
