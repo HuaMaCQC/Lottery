@@ -271,7 +271,7 @@ json
 |key|value|說明
 |----|----|----
 |row|5|樂透的數量 5~20
-|key|istar36588|API的金鑰
+|key|kkkk|API的金鑰
 
 <p id = "RESULT"></p>
 
