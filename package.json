@@ -1,0 +1,26 @@
+{
+  "name": "get_lottery",
+  "version": "1.0.0",
+  "description": "自開彩服務",
+  "main": "Lottery_result.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/starclub88/pyramid_custom_lottery.git"
+  },
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/starclub88/pyramid_custom_lottery/issues"
+  },
+  "homepage": "https://github.com/starclub88/pyramid_custom_lottery#readme",
+  "dependencies": {
+    "koa": "^2.4.1",
+    "koa-router": "^7.3.0",
+    "moment": "^2.20.1",
+    "mysql": "^2.15.0",
+    "node-schedule": "^1.2.5"
+  }
+}

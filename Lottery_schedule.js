@@ -1,101 +1,82 @@
-const SetDB = require('./SetDB');
+const SetDB = require('./set_db');
 let schedule = require('node-schedule');
-class lottrtyNumber  {
+const moment = require('moment');
+
+class lottrtyNumber {
     /**
-     * @param {Number} maxNum 最大號碼
-     * @param {Number} minNum 最小號碼
-     * @param {Number} InspectionHour server斷線超過多少小時不回復
-     * @param {String} issueFirst 編碼格式 '001'
-     * @param {Number} n 產生多少個號碼
-     * @param {rule} rule 觸發規則 
-     * @param {Number} type 財種
-     * @param {Number} startHour 每日幾點開始開獎  
-     * @param {Number} startminute 每日幾分開始開獎
-     * @param {Number} endHour 每日幾點結束開獎
-     * @param {Number} endminute 每日幾分結束開獎
+     * @param {Object} lotteryNum 
+     * @param {Number} lotteryNum.maxNum 
+     * @param {Number} lotteryNum.minNum  
+     * @param {Number} lotteryNum.n - 樂透號碼設定
+     * - maxNum  最大號碼  
+     * - minNum  最小號碼  
+     * - n 產生多少個號碼
+     * @param {Object} lotteryType 
+     * @param {Number} lotteryType.type
+     * @param {String} lotteryType.issueFirst  樂透編碼設定 
+     * - type 彩種 
+     * - issueFirst 編碼格式 '001'
+     * @param {Object} lotterySchedule 
+     * @param {Number} lotterySchedule.InspectionHour
+     * @param {Number} lotterySchedule.startHour
+     * @param {Number} lotterySchedule.startMinute
+     * @param {Number} lotterySchedule.endHour
+     * @param {Number} lotterySchedule.endMinute 開獎時間設定 
+     * - InspectionHour  server斷線超過多少小時不回復
+     * - startHour 每日幾點開始開獎
+     * - startMinute 每日幾分開始開獎
+     * - endHour 每日幾點結束開獎
+     * - endMinute 每日幾分結束開獎
      */
     constructor(
-        maxNum = 10,
-        minNum=1,
-        type = 0,
-        InspectionHour=48,
-        n= 10,
-        issueFirst = '001',
-        startHour = 0,
-        startminute = 0,
-        endHour = 23,
-        endminute = 0,
-    )
-    {
-        this.rule =  new schedule.RecurrenceRule();
-        this.maxNum = maxNum;
-        this.minNum=minNum;
-        this.type = type;
-        this.InspectionHour=InspectionHour;
-        this.n= n;
-        this.issueFirst = issueFirst;
-        this.startHour = startHour;
-        this.startminute = startminute;
-        this.endHour = endHour;
-        this.endminute = endminute;
+        lotteryNum = { maxNum: 10, minNum: 1, n: 10 },
+        lotteryType = { type: 0, issueFirst: '001' },
+        lotterySchedule = { InspectionHour: 48, startHour: 0, startMinute: 0, endHour: 23, endMinute: 55 }) {
+
+        this.rule = new schedule.RecurrenceRule(); //觸發規則
+        this.maxNum = lotteryNum.maxNum || 10; //最大號碼
+        this.minNum = lotteryNum.minNum || 1; //最小號碼
+        this.n = lotteryNum.n || 10;  //產生多少個號碼
+        this.type = lotteryType.type || 0; //彩種
+        this.issueFirst = lotteryType.issueFirst || '001'; //編碼格式 '001'
+        this.InspectionHour = lotterySchedule.InspectionHour || 48; //server斷線超過多少小時不回復
+        this.startHour = lotterySchedule.startHour || 0; //每日幾點開始開獎
+        this.startMinute = lotterySchedule.startMinute || 0; //每日幾分開始開獎
+        this.endHour = lotterySchedule.endHour || 23; //每日幾點結束開獎
+        this.endMinute = lotterySchedule.endMinute || 55; //每日幾分結束開獎
     }
-    scheduleCronstyle(){  //定時任務
-        let startTime =this.startHour*60 + this.startminute ;
-        let endTime = this.endHour*60 + this.endminute;
-        let getLottery = false; //有沒有取得樂透
-        let regainSql =''; //server需要回復的資料
-        let dbConnect = true; //偵測資料是否開始被存入資料庫
-        let dbConnect_1 = false; //偵測 資料庫最新資料更新是否開始
-        let lastTime = ''; //DB產生的資料暫存
-        let issue = ''; //期數
+    scheduleCronstyle() {  //定時任務
+        let dbConnect = false; //偵測資料是否開始被存入資料庫
         let me = this;
-        let nextTime = new Date(); //下一次執行的時間
-        setInterval(()=>{//定時任務
-            //與DB連線失敗
-            if(regainSql =='' &&  !dbConnect_1){  //如果伺服器與DB第一次連線了 與DB資料同步 
-                dbConnect_1=true; //關閉(防止重複執行)
-                SetDB.getRegainDbSql(me,startTime,endTime,(sql,m_issue,m_nextTime)=>{
-                    regainSql = sql;         //取得需要恢復的資料
-                    issue = m_issue;      //取得最新一筆的期數
-                    nextTime = m_nextTime; //取得最新一筆生產的時間
-                    dbConnect_1=true;               
-                    dbConnect=false;      //成功取道最新資料才開始恢復
-                },err=>{    //連線異常
-                    dbConnect_1=false; //打開       
-                })
-            }else if(regainSql !='' && !dbConnect) { //恢復DB
-                dbConnect = true; 
-                SetDB.saveSql(regainSql,()=>{
-                    console.log('DB復原成功:'+regainSql);
-                    regainSql='';
-                    dbConnect = false; 
-                },err=>{
-                    console.log('復原失敗');
-                    dbConnect = false;
-                });
-            }
-            //定時產生
-            if(!dbConnect){ //如果已經檢查完資料庫
-                if( nextTime.getTime() <= new Date().getTime() && !getLottery ){ //下次時間到了
-                    getLottery = true;
-                     SetDB.saveLottery(me,issue,nextTime,(msg,m_issue)=>{//儲存成功
-                        console.log('儲存成功'+msg+'現在時間:'+new Date());
-                         issue=m_issue; //取得期數
-                         do{
-                            nextTime = me.rule.nextInvocationDate(nextTime);//獲取下次產生亂數時間 
-                         }while( ((nextTime.getHours()*60)+ nextTime.getMinutes()) < startTime ||
-                          ((nextTime.getHours()*60)+ nextTime.getMinutes()) >endTime );
-                         getLottery = false;
-                     },(sql,_sql,m_issue,err)=>{//儲存失敗
-                        getLottery = false;
-                        console.log('server異常');
-                        dbConnect_1 = false;
-                        regainSql = '';
-                        dbConnect = true;
-                    });
+        let startTime = moment().hour(me.startHour).minute(me.startMinute).second(0).subtract(1, 's');
+        let endTime = moment().hour(me.endHour).minute(me.endMinute).second(0).add(1, 's');
+        let today = moment();
+        setInterval(() => {//定時任務
+            if (today.isBefore(moment().add(1, 'day'), 'day')) { //現在的時間是否在範圍內
+                if (!dbConnect) {  //如果伺服器與DB第一次連線了 與DB資料同步
+                    dbConnect = true; //關閉(防止重複執行)
+                    SetDB.getRegainDbSql(me, startTime, endTime, today, (sql, m_strat, m_end) => {
+                        if (sql == '') { //如果不需要儲存資料
+                            dbConnect = false;
+                            startTime = m_strat; //取得明天要產生的
+                            endTime = m_end;
+                        } else {
+                            SetDB.saveSql(sql, () => {
+                                console.log('儲存成功')
+                                startTime = m_strat;
+                                endTime = m_end;
+                                dbConnect = false;
+                            }, err => {
+                                console.log('儲存失敗');
+                            })
+                        }
+                    }, err => {    //連線異常
+                        console.log('連線異常');
+                        dbConnect = false; //打開       
+                    })
                 }
-            }  
-        },10000);
+            }
+        }, 1000);
     }
 }
 module.exports = lottrtyNumber;
