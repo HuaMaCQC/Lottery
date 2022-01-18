@@ -10,7 +10,7 @@ module.exports ={
         let rdmString ='';
         for(let i = 0 ; i < n ;i++ ) {
             let rdm = 0;		//暫存的亂數
-            let exist = false
+            let exist = false;
             do {
                 exist = false;			//此亂數是否已存在
                 rdm = Math.floor(Math.random() * (maxNum - minNum + 1)) + minNum;	//取得亂數
@@ -25,15 +25,16 @@ module.exports ={
     /**
      * 產生期號 ymd+000
      * @param date 產生時間
-     * @param issues 最後一筆編號
+     * @param issue 最後一筆編號
+     * @param issueFirst 第一筆編碼方式 '001'
      */
-    getissues:(date,issues)=>{
+    getissue:(date,issue,issueFirst)=>{
         let mm = date.getMonth() + 1;
-        let dd = date.getDate()
+        let dd = date.getDate();
         let ymd = date.getFullYear() + (mm>9 ? '' : '0') + mm+(dd>9 ? '' : '0') + dd;
-        let num = '001';
-        if(ymd ==String(issues).slice(0,8)){ //如果是當天
-            return Number(issues) +1
+        let num = issueFirst;
+        if(ymd ==String(issue).slice(0,8)){ //如果是當天
+            return Number(issue) +1;
         }else{
             return ""+ymd+num;
         }

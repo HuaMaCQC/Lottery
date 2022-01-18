@@ -1,0 +1,25 @@
+{
+    "DB":{
+        "host":"localhost",
+        "user":"root",
+        "password":"",
+        "database":"lottery",
+        "table":"lottery_data",
+        "date":"created_at",
+        "result":"result",
+        "type":"type",
+        "issue":"issue"
+    },
+    "typeDB":{
+        "table":"lottery_type",
+        "id":"id",
+        "type":"type",
+        "name":"name"
+    },
+    "firm":{
+        "database":"lottery",
+        "table":"firm",
+        "id":"id",
+        "key":"key"
+    }
+}
